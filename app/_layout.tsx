@@ -1,11 +1,13 @@
 import ThemedStatusBar from "@/components/ThemedStatusBar";
+import { CrimeProvider } from "@/contexts/crimeContext";
 import { ThemeProvider, useTheme } from "@/contexts/themeContext";
 import { Ionicons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import { Pressable } from "react-native";
 
 function HeaderButtons() {
   const router = useRouter();
+  const pathname = usePathname();
   const { isLightTheme } = useTheme();
 
   // Use the centralized theme logic from context
@@ -21,9 +23,12 @@ function HeaderButtons() {
 
   return (
     <>
-      <Pressable onPress={handleAddCrime} style={{ marginRight: 15 }}>
-        <Ionicons name="add" size={24} color={iconColor} />
-      </Pressable>
+      {/* Only show the + button on the index screen */}
+      {pathname === "/" && (
+        <Pressable onPress={handleAddCrime} style={{ marginRight: 15 }}>
+          <Ionicons name="add" size={24} color={iconColor} />
+        </Pressable>
+      )}
       <Pressable onPress={handleSettings}>
         <Ionicons name="settings" size={24} color={iconColor} />
       </Pressable>
@@ -53,8 +58,10 @@ function ThemedStack() {
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <ThemedStatusBar />
-      <ThemedStack />
+      <CrimeProvider>
+        <ThemedStatusBar />
+        <ThemedStack />
+      </CrimeProvider>
     </ThemeProvider>
   );
 }

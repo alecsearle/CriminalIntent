@@ -1,4 +1,5 @@
-import React, { createContext, ReactNode, useContext, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, ReactNode, useContext, useEffect, useState } from "react";
 
 type StatusBarStyle = "light" | "dark" | "auto";
 
@@ -10,11 +11,12 @@ type ThemeObject = {
 type ThemeContextType = {
   contextTheme: string;
   currentThemeObject: ThemeObject;
-  changeTheme: (themeName: string) => void;
+  changeTheme: (themeName: string) => Promise<void>;
   isLightTheme: boolean;
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const THEME_STORAGE_KEY = "@criminal_intent_theme";
 
 // Centralized definition of light themes
 const lightThemes = ["white", "green", "red"];
@@ -58,12 +60,44 @@ const themeConfig: Record<string, ThemeObject> = {
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [contextTheme, setContextTheme] = useState<string>("purple");
 
+  // Load theme from AsyncStorage on app start
+  useEffect(() => {
+    loadTheme();
+  }, []);
+
+  const loadTheme = async () => {
+    try {
+      const storedTheme = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+      if (storedTheme && themeConfig[storedTheme]) {
+        setContextTheme(storedTheme);
+        console.log("Loaded theme from storage:", storedTheme);
+      } else {
+        // Save default theme if none exists
+        await saveThemeToStorage("purple");
+        console.log("Initialized with default theme: purple");
+      }
+    } catch (error) {
+      console.error("Error loading theme:", error);
+      // Keep default theme if storage fails
+    }
+  };
+
+  const saveThemeToStorage = async (theme: string) => {
+    try {
+      await AsyncStorage.setItem(THEME_STORAGE_KEY, theme);
+      console.log("Saved theme to storage:", theme);
+    } catch (error) {
+      console.error("Error saving theme:", error);
+    }
+  };
+
   const currentThemeObject = themeConfig[contextTheme] || themeConfig.purple;
   const isLightTheme = isThemeLight(contextTheme);
 
-  const changeTheme = (themeName: string) => {
+  const changeTheme = async (themeName: string) => {
     if (themeConfig[themeName]) {
       setContextTheme(themeName);
+      await saveThemeToStorage(themeName);
     }
   };
 

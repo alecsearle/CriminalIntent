@@ -1,29 +1,27 @@
 import DatePicker from "@/components/DatePicker";
 import ImagePicker from "@/components/ImagePicker";
+import { useCrime } from "@/contexts/crimeContext";
 import { useTheme } from "@/contexts/themeContext";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
-type Crime = {
-  id: string;
-  title: string;
-  details: string;
-  date: string;
-  photo: string | null;
-  solved: boolean;
-};
-
 export default function CrimeDetail() {
   const { currentThemeObject, isLightTheme } = useTheme();
+  const { addCrime, updateCrime, getCrimeById } = useCrime();
   const router = useRouter();
+  const { id } = useLocalSearchParams<{ id?: string }>();
+
+  // Check if we're editing an existing crime
+  const existingCrime = id ? getCrimeById(id as string) : undefined;
+  const isEditing = !!existingCrime;
 
   // Form state
-  const [title, setTitle] = useState("");
-  const [details, setDetails] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]); // Current date as default
-  const [photo, setPhoto] = useState<string | null>(null);
-  const [solved, setSolved] = useState(false);
+  const [title, setTitle] = useState(existingCrime?.title || "");
+  const [details, setDetails] = useState(existingCrime?.details || "");
+  const [date, setDate] = useState(existingCrime?.date || new Date().toISOString());
+  const [photo, setPhoto] = useState<string | null>(existingCrime?.photo || null);
+  const [solved, setSolved] = useState(existingCrime?.solved || false);
 
   // Dynamic colors based on theme
   const textColor = isLightTheme ? "#000000" : "#FFFFFF";
@@ -31,18 +29,13 @@ export default function CrimeDetail() {
   const inputBackgroundColor = isLightTheme ? "#FFFFFF" : "#333333";
   const inputBorderColor = isLightTheme ? "#CCCCCC" : "#555555";
 
-  const handleTakePhoto = () => {
-    Alert.alert("Take Photo", "Camera functionality coming soon!");
-  };
-
-  const handleSaveCrime = () => {
+  const handleSaveCrime = async () => {
     if (!title.trim()) {
       Alert.alert("Error", "Please enter a crime title");
       return;
     }
 
-    const newCrime: Crime = {
-      id: Date.now().toString(),
+    const crimeData = {
       title: title.trim(),
       details: details.trim(),
       date,
@@ -50,13 +43,30 @@ export default function CrimeDetail() {
       solved,
     };
 
-    // TODO: Save to crime list context/storage
-    Alert.alert("Crime Saved", `Crime "${title}" has been saved successfully!`, [
-      {
-        text: "OK",
-        onPress: () => router.back(),
-      },
-    ]);
+    try {
+      if (isEditing && existingCrime) {
+        // Update existing crime
+        await updateCrime(existingCrime.id, crimeData);
+        Alert.alert("Crime Updated", `Crime "${title}" has been updated successfully!`, [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]);
+      } else {
+        // Add new crime
+        await addCrime(crimeData);
+        Alert.alert("Crime Saved", `Crime "${title}" has been saved successfully!`, [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("Error saving crime:", error);
+      Alert.alert("Error", "Failed to save crime. Please try again.");
+    }
   };
 
   const handleCancel = () => {
@@ -69,9 +79,9 @@ export default function CrimeDetail() {
         {/* Photo and Title Section */}
         <View style={styles.topSection}>
           {/* Photo Placeholder */}
-          <Pressable style={styles.photoContainer} onPress={handleTakePhoto}>
-            <ImagePicker />
-          </Pressable>
+          <View style={styles.photoContainer}>
+            <ImagePicker image={photo} onImageChange={setPhoto} />
+          </View>
 
           {/* Title Section */}
           <View style={styles.titleSection}>

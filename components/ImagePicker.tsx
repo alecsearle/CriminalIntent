@@ -1,11 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useState } from "react";
 import { Image, Pressable, StyleSheet, View } from "react-native";
 
-export default function ImagePickerExample() {
-  const [image, setImage] = useState<string | null>(null);
+type ImagePickerProps = {
+  image: string | null;
+  onImageChange: (uri: string | null) => void;
+};
 
+export default function ImagePickerExample({ image, onImageChange }: ImagePickerProps) {
   const pickImage = async () => {
     // No permissions request is necessary for launching the image library
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -18,7 +20,7 @@ export default function ImagePickerExample() {
     console.log(result);
 
     if (!result.canceled) {
-      setImage(result.assets[0].uri);
+      onImageChange(result.assets[0].uri);
     }
   };
 
