@@ -1,5 +1,4 @@
 import ThemedStatusBar from "@/components/ThemedStatusBar";
-import { CrimeProvider } from "@/contexts/crimeContext";
 import { ThemeProvider, useTheme } from "@/contexts/themeContext";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, usePathname, useRouter } from "expo-router";
@@ -9,8 +8,6 @@ function HeaderButtons() {
   const router = useRouter();
   const pathname = usePathname();
   const { isLightTheme } = useTheme();
-
-  // Use the centralized theme logic from context
   const iconColor = isLightTheme ? "#000000" : "#FFFFFF";
 
   const handleAddCrime = () => {
@@ -23,7 +20,6 @@ function HeaderButtons() {
 
   return (
     <>
-      {/* Only show the + button on the index screen */}
       {pathname === "/" && (
         <Pressable onPress={handleAddCrime} style={{ marginRight: 15 }}>
           <Ionicons name="add" size={24} color={iconColor} />
@@ -38,8 +34,6 @@ function HeaderButtons() {
 
 function ThemedStack() {
   const { currentThemeObject, isLightTheme } = useTheme();
-
-  // Use the centralized theme logic from context
   const headerTintColor = isLightTheme ? "#000000" : "#FFFFFF";
 
   return (
@@ -51,17 +45,23 @@ function ThemedStack() {
         headerTitle: "Criminal Intent",
         headerRight: () => <HeaderButtons />,
       }}
-    />
+    >
+      <Stack.Screen
+        name="crimedetail/index"
+        options={{
+          headerTitle: "Crime Detail",
+          headerRight: undefined, // Remove the header buttons on detail screen
+        }}
+      />
+    </Stack>
   );
 }
 
 export default function RootLayout() {
   return (
     <ThemeProvider>
-      <CrimeProvider>
-        <ThemedStatusBar />
-        <ThemedStack />
-      </CrimeProvider>
+      <ThemedStatusBar />
+      <ThemedStack />
     </ThemeProvider>
   );
 }

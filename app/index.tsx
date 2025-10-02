@@ -1,9 +1,19 @@
-import { useCrime } from "@/contexts/crimeContext";
 import { useTheme } from "@/contexts/themeContext";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import React from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+
+// Simple local type definition
+type Crime = {
+  id: string;
+  title: string;
+  date: string;
+  solved: boolean;
+  details?: string;
+  photo?: string | null;
+};
 
 type CrimeItemProps = {
   id: string;
@@ -39,10 +49,78 @@ function CrimeItem({
   );
 }
 
+// Simple ID generator
+const generateId = () => {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+};
+
 export default function Index() {
-  const { crimes } = useCrime();
   const { currentThemeObject, isLightTheme } = useTheme();
   const router = useRouter();
+
+  // Local state for crimes
+  const [crimes, setCrimes] = useState<Crime[]>([
+    {
+      id: "1",
+      title: "Test Crime 1",
+      date: "2025-01-30T13:13:43.639Z",
+      solved: false,
+    },
+    {
+      id: "2",
+      title: "Test Crime 2",
+      date: "2025-01-24T21:44:40.415Z",
+      solved: false,
+    },
+    {
+      id: "3",
+      title: "Test Crime 3",
+      date: "2025-01-03T02:14:54.649Z",
+      solved: true,
+    },
+  ]);
+
+  // Load crimes from AsyncStorage when screen focuses
+  useFocusEffect(
+    useCallback(() => {
+      loadCrimes();
+    }, [])
+  );
+
+  const loadCrimes = async () => {
+    try {
+      const savedCrimes = await AsyncStorage.getItem("@crimes");
+      if (savedCrimes) {
+        setCrimes(JSON.parse(savedCrimes));
+      } else {
+        // Initialize with default crimes if none exist
+        const defaultCrimes = [
+          {
+            id: "1",
+            title: "Test Crime 1",
+            date: "2025-01-30T13:13:43.639Z",
+            solved: false,
+          },
+          {
+            id: "2",
+            title: "Test Crime 2",
+            date: "2025-01-24T21:44:40.415Z",
+            solved: false,
+          },
+          {
+            id: "3",
+            title: "Test Crime 3",
+            date: "2025-01-03T02:14:54.649Z",
+            solved: true,
+          },
+        ];
+        setCrimes(defaultCrimes);
+        await AsyncStorage.setItem("@crimes", JSON.stringify(defaultCrimes));
+      }
+    } catch (error) {
+      console.error("Error loading crimes:", error);
+    }
+  };
 
   const textColor = isLightTheme ? "#000000" : "#FFFFFF";
   const itemBackgroundColor = isLightTheme ? "rgba(0, 0, 0, 0.05)" : "rgba(255, 255, 255, 0.1)";

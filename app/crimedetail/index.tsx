@@ -1,27 +1,67 @@
-import DatePicker from "@/components/DatePicker";
-import ImagePicker from "@/components/ImagePicker";
-import { useCrime } from "@/contexts/crimeContext";
+import CrimeDateSection from "@/components/CrimeDateSection";
+import CrimeDetailsSection from "@/components/CrimeDetailsSection";
+import CrimeSaveButton from "@/components/CrimeSaveButton";
+import CrimeSolvedSection from "@/components/CrimeSolvedSection";
+import CrimeTitleSection from "@/components/CrimeTitleSection";
 import { useTheme } from "@/contexts/themeContext";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import { Alert, ScrollView, StyleSheet, View } from "react-native";
+
+// Simple ID generator
+const generateId = () => {
+  return Date.now().toString() + Math.random().toString(36).substr(2, 9);
+};
 
 export default function CrimeDetail() {
   const { currentThemeObject, isLightTheme } = useTheme();
-  const { addCrime, updateCrime, getCrimeById } = useCrime();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-
-  // Check if we're editing an existing crime
-  const existingCrime = id ? getCrimeById(id as string) : undefined;
-  const isEditing = !!existingCrime;
+  const isEditing = !!id;
 
   // Form state
-  const [title, setTitle] = useState(existingCrime?.title || "");
-  const [details, setDetails] = useState(existingCrime?.details || "");
-  const [date, setDate] = useState(existingCrime?.date || new Date().toISOString());
-  const [photo, setPhoto] = useState<string | null>(existingCrime?.photo || null);
-  const [solved, setSolved] = useState(existingCrime?.solved || false);
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [date, setDate] = useState(new Date().toISOString());
+  const [photo, setPhoto] = useState<string | null>(null);
+  const [solved, setSolved] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Load crime data when editing
+  useFocusEffect(
+    useCallback(() => {
+      if (isEditing) {
+        loadCrimeData();
+      }
+    }, [id])
+  );
+
+  const loadCrimeData = async () => {
+    if (!id) return;
+
+    try {
+      setLoading(true);
+      const savedCrimes = await AsyncStorage.getItem("@crimes");
+      if (savedCrimes) {
+        const crimes = JSON.parse(savedCrimes);
+        const crime = crimes.find((c: any) => c.id === id);
+
+        if (crime) {
+          setTitle(crime.title || "");
+          setDetails(crime.details || "");
+          setDate(crime.date || new Date().toISOString());
+          setPhoto(crime.photo || null);
+          setSolved(crime.solved || false);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading crime data:", error);
+      Alert.alert("Error", "Failed to load crime data.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Dynamic colors based on theme
   const textColor = isLightTheme ? "#000000" : "#FFFFFF";
@@ -35,18 +75,54 @@ export default function CrimeDetail() {
       return;
     }
 
-    const crimeData = {
-      title: title.trim(),
-      details: details.trim(),
-      date,
-      photo,
-      solved,
-    };
-
     try {
-      if (isEditing && existingCrime) {
+      // Get existing crimes from AsyncStorage
+      const savedCrimes = await AsyncStorage.getItem("@crimes");
+      let crimes = [];
+
+      if (savedCrimes) {
+        crimes = JSON.parse(savedCrimes);
+      } else {
+        // If no crimes exist, start with the default ones
+        crimes = [
+          {
+            id: "1",
+            title: "Test Crime 1",
+            date: "2025-01-30T13:13:43.639Z",
+            solved: false,
+          },
+          {
+            id: "2",
+            title: "Test Crime 2",
+            date: "2025-01-24T21:44:40.415Z",
+            solved: false,
+          },
+          {
+            id: "3",
+            title: "Test Crime 3",
+            date: "2025-01-03T02:14:54.649Z",
+            solved: true,
+          },
+        ];
+      }
+
+      if (isEditing && id) {
         // Update existing crime
-        await updateCrime(existingCrime.id, crimeData);
+        const crimeIndex = crimes.findIndex((c: any) => c.id === id);
+        if (crimeIndex !== -1) {
+          crimes[crimeIndex] = {
+            ...crimes[crimeIndex],
+            title: title.trim(),
+            details: details.trim(),
+            date,
+            photo,
+            solved,
+          };
+        }
+
+        // Save back to AsyncStorage
+        await AsyncStorage.setItem("@crimes", JSON.stringify(crimes));
+
         Alert.alert("Crime Updated", `Crime "${title}" has been updated successfully!`, [
           {
             text: "OK",
@@ -54,8 +130,22 @@ export default function CrimeDetail() {
           },
         ]);
       } else {
-        // Add new crime
-        await addCrime(crimeData);
+        // Create new crime
+        const newCrime = {
+          id: generateId(),
+          title: title.trim(),
+          details: details.trim(),
+          date,
+          photo,
+          solved,
+        };
+
+        // Add to crimes array
+        crimes.push(newCrime);
+
+        // Save back to AsyncStorage
+        await AsyncStorage.setItem("@crimes", JSON.stringify(crimes));
+
         Alert.alert("Crime Saved", `Crime "${title}" has been saved successfully!`, [
           {
             text: "OK",
@@ -76,74 +166,25 @@ export default function CrimeDetail() {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
-        {/* Photo and Title Section */}
-        <View style={styles.topSection}>
-          {/* Photo Placeholder */}
-          <View style={styles.photoContainer}>
-            <ImagePicker image={photo} onImageChange={setPhoto} />
-          </View>
+        <CrimeTitleSection
+          photo={photo}
+          onImageChange={setPhoto}
+          title={title}
+          onTitleChange={setTitle}
+        />
 
-          {/* Title Section */}
-          <View style={styles.titleSection}>
-            <Text style={styles.titleLabel}>Title</Text>
-            <TextInput
-              style={styles.titleInput}
-              placeholder="Title"
-              placeholderTextColor="#999"
-              value={title}
-              onChangeText={setTitle}
-            />
-          </View>
-        </View>
+        <CrimeDetailsSection details={details} onDetailsChange={setDetails} />
 
-        {/* Details Section */}
-        <View style={styles.detailsSection}>
-          <Text style={styles.detailsLabel}>Details</Text>
-          <TextInput
-            style={styles.detailsInput}
-            placeholder="What happened?"
-            placeholderTextColor="#999"
-            value={details}
-            onChangeText={setDetails}
-            multiline
-            textAlignVertical="top"
-          />
-        </View>
+        <CrimeDateSection date={date} onDateChange={setDate} textColor={textColor} />
 
-        {/* Date Button */}
-        <Pressable style={[styles.dateButton, { backgroundColor: currentThemeObject.color }]}>
-          <Text style={[styles.dateButtonText, { color: isLightTheme ? "#000" : "#fff" }]}>
-            <DatePicker />
-          </Text>
-        </Pressable>
-        {/* Solved Checkbox */}
-        <View style={styles.solvedContainer}>
-          <Pressable
-            style={[
-              styles.checkbox,
-              solved && {
-                backgroundColor: currentThemeObject.color,
-                borderColor: currentThemeObject.color,
-              },
-            ]}
-            onPress={() => setSolved(!solved)}
-          >
-            {solved && (
-              <View style={{ width: 12, height: 12, backgroundColor: "#fff", borderRadius: 2 }} />
-            )}
-          </Pressable>
-          <Text style={styles.solvedText}>Solved</Text>
-        </View>
+        <CrimeSolvedSection solved={solved} onSolvedChange={setSolved} />
 
-        {/* Save Button */}
-        <Pressable
-          style={[styles.saveButton, { backgroundColor: currentThemeObject.color }]}
-          onPress={handleSaveCrime}
-        >
-          <Text style={[styles.saveButtonText, { color: isLightTheme ? "#000" : "#fff" }]}>
-            SAVE
-          </Text>
-        </Pressable>
+        <CrimeSaveButton
+          onSave={handleSaveCrime}
+          isEditing={isEditing}
+          backgroundColor={currentThemeObject.color}
+          textColor={isLightTheme ? "#000" : "#fff"}
+        />
       </ScrollView>
     </View>
   );
@@ -159,100 +200,5 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 20,
-  },
-  topSection: {
-    flexDirection: "row",
-    marginBottom: 30,
-  },
-  photoContainer: {
-    marginRight: 20,
-  },
-  photo: {
-    width: 120,
-    height: 90,
-    borderRadius: 4,
-  },
-  photoPlaceholder: {
-    width: 120,
-    height: 90,
-    backgroundColor: "#e0e0e0",
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 4,
-  },
-  titleSection: {
-    flex: 1,
-  },
-  titleLabel: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#000",
-    marginBottom: 15,
-  },
-  titleInput: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#ccc",
-    fontSize: 16,
-    paddingVertical: 8,
-    color: "#000",
-  },
-  detailsSection: {
-    marginBottom: 20,
-  },
-  detailsLabel: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#000",
-    marginBottom: 15,
-  },
-  detailsInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    borderRadius: 4,
-    padding: 15,
-    fontSize: 16,
-    height: 120,
-    textAlignVertical: "top",
-    backgroundColor: "#fff",
-    color: "#000",
-  },
-  dateButton: {
-    padding: 15,
-    borderRadius: 4,
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  dateButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  solvedContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: "#ccc",
-    marginRight: 10,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#fff",
-  },
-  solvedText: {
-    fontSize: 16,
-    color: "#000",
-  },
-  saveButton: {
-    padding: 15,
-    borderRadius: 4,
-    alignItems: "center",
-    marginTop: 10,
-  },
-  saveButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
   },
 });
